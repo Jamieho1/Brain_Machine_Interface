@@ -1,0 +1,110 @@
+function smoothed = Smoothing(test_data)
+
+smoothed = average_window (test_data);
+
+end
+
+
+function smoothed = average_window(test_data)
+
+data = trimAndBinToSum(test_data,200, 500, 10, 0);
+binnedData = data.trial_data.bin_sums; % 98 x 30
+
+% Define the size of the averaging window (adjust as needed)
+windowSize = 8;
+
+% Preallocate smoothed data matrix
+smoothedData = zeros(size(binnedData)); 
+
+% Apply average window smoothing
+for i = 1:size(binnedData, 1) % Iterate over each neuron
+    for j = 1:size(binnedData, 2) % Iterate over each time bin
+
+        % Determine window boundaries
+        windowStart = max(1, j - floor(windowSize/2));
+        windowEnd = min(size(binnedData, 2), j + floor(windowSize/2));
+
+        % Calculate the average within the window
+        smoothedData(i, j) = mean(binnedData(i, windowStart:windowEnd));
+    end
+    smoothed = smoothedData;
+end
+
+% Display the result
+disp(smoothedData);
+end
+
+
+
+
+
+
+function [smoothedData, binnedData] = gaussian(test_data)
+
+data = trimAndBinToSum(test_data,200, 500, 10, 0);
+binnedData = data.trial_data.bin_sums;
+
+% Standard deviation of the Gaussian kernel (adjust as needed)
+sigma = 2;
+
+% Create the Gaussian kernel
+kernelSize = 5 * sigma; % Choose an appropriate kernel size
+kernel = fspecial('gaussian', [1, kernelSize], sigma);
+
+% Preallocate smoothed data matrix
+smoothedData = zeros(size(binnedData));
+
+% Apply Gaussian smoothing to each neuron's spike train data
+for i = 1:size(binnedData, 1) % Iterate over each neuron
+    smoothedData(i, :) = conv(binnedData(i, :), kernel, 'same');
+end
+
+% Display the result
+disp(smoothedData);
+
+end
+
+
+function trial_Processed = trimAndBinToSum(raw_Data, start_time, end_time, bin_Size, trainingFlag)
+% Takes a struct of the input data
+% Trims it to length that is the most relative
+% Bins the spikes of each trial by summing the number of spikes in a bin_Size interval
+% The dimensions are included in the struct
+% if training,  training_flag = 1. if not training_flag is 0.
+
+% Set up the struct and other variables
+trial_Processed = struct; 
+
+% Number of:
+noTrials = size(raw_Data,1);
+noDirections = size(raw_Data,2);
+noNeurons = size(raw_Data(1,1).spikes,1);
+noBins = floor((end_time - start_time)/bin_Size);
+
+% Set up the dimensions to be in the struct
+trial_Processed.bin_Size = bin_Size;
+trial_Processed.noDirections = noDirections;
+trial_Processed.noTrials = noTrials;
+trial_Processed.noNeurons = noNeurons;
+
+for i=1:noTrials
+
+    for j = 1:noDirections
+        
+        % trim data for all neurons
+        data = raw_Data(i, j).spikes(:, start_time : end_time - 1);
+            
+            for k = 1:noBins  
+                bin_sum(:,k) = sum(data(:,(k-1)*(bin_Size)+1:(k*bin_Size)), 2); 
+            end
+        trial_Processed.trial_max(i,j) = max(max(bin_sum));
+        trial_Processed.trial_data(i,j).bin_sums = bin_sum;
+        
+        if trainingFlag == 1
+            trial_Processed.data(i,j).handPos = raw_Data(i,j).handPos;
+        end
+    end
+
+ trial_Processed.maxBinSum = max(max(trial_Processed.trial_max));
+end
+end
